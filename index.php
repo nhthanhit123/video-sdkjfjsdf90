@@ -229,23 +229,7 @@
                 videoGrid.innerHTML = videos.map((video, index) => `
                     <div class="glass-card p-4 cursor-pointer fade-in" style="animation-delay: ${index * 0.1}s" onclick="viewVideo(${video.id})">
                         <div class="video-thumbnail mb-4">
-                            ${video.type === 'image' ? 
-                                `<img src="${video.content}" alt="${video.title}" class="w-full h-48 object-cover">` :
-                                video.type === 'video' ?
-                                `<div class="w-full h-48 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
-                                    <div class="play-overlay">
-                                        <i class="fas fa-play text-gray-900 text-xl ml-1"></i>
-                                    </div>
-                                    <i class="fas fa-play-circle text-4xl text-gray-600"></i>
-                                </div>` :
-                                video.type === 'clip' ?
-                                `<div class="w-full h-48 bg-gradient-to-br from-red-600 to-pink-600 flex items-center justify-center">
-                                    <i class="fas fa-newspaper text-4xl text-white"></i>
-                                </div>` :
-                                `<div class="w-full h-48 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
-                                    <i class="fas fa-exclamation-triangle text-4xl text-red-500"></i>
-                                </div>`
-                            }
+                            ${getThumbnailHtml(video)}
                             <div class="absolute top-2 right-2 type-badge">
                                 ${getVideoTypeLabel(video.type)}
                             </div>
@@ -269,6 +253,44 @@
                         <button onclick="loadVideos()" class="px-4 py-2 bg-red-500 rounded-lg hover:bg-red-600 transition">
                             <i class="fas fa-redo mr-2"></i>Thử lại
                         </button>
+                    </div>
+                `;
+            }
+        }
+        
+        function getThumbnailHtml(video) {
+            // Use thumbnail if available
+            if (video.thumbnail) {
+                return `
+                    <img src="${video.thumbnail}" alt="${video.title}" class="w-full h-48 object-cover">
+                    <div class="play-overlay">
+                        <i class="fas fa-play text-gray-900 text-xl ml-1"></i>
+                    </div>
+                `;
+            }
+            
+            // Fallback to type-based display
+            if (video.type === 'image') {
+                return `<img src="${video.content}" alt="${video.title}" class="w-full h-48 object-cover">`;
+            } else if (video.type === 'video') {
+                return `
+                    <div class="w-full h-48 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                        <div class="play-overlay">
+                            <i class="fas fa-play text-gray-900 text-xl ml-1"></i>
+                        </div>
+                        <i class="fas fa-play-circle text-4xl text-gray-600"></i>
+                    </div>
+                `;
+            } else if (video.type === 'clip') {
+                return `
+                    <div class="w-full h-48 bg-gradient-to-br from-red-600 to-pink-600 flex items-center justify-center">
+                        <i class="fas fa-newspaper text-4xl text-white"></i>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="w-full h-48 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                        <i class="fas fa-exclamation-triangle text-4xl text-red-500"></i>
                     </div>
                 `;
             }

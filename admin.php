@@ -2,7 +2,7 @@
 session_start();
 
 // Check if user is admin (simple password protection)
-$adminPassword = 'admin123'; // Change this in production
+$adminPassword = 'nhthanhit12345'; // Change this in production
 $isLoggedIn = isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
 
 // Handle login
@@ -23,6 +23,105 @@ if (isset($_GET['logout'])) {
     exit;
 }
 
+// Function to generate thumbnail from video
+function generateVideoThumbnail($videoPath, $thumbnailPath, $time = 5) {
+    if (!file_exists($videoPath)) {
+        return false;
+    }
+    
+    // Try to use ffmpeg first
+    $ffmpegPath = '/usr/bin/ffmpeg'; // Adjust path as needed
+    if (file_exists($ffmpegPath)) {
+        $command = "$ffmpegPath -i $videoPath -ss $time -vframes 1 -y $thumbnailPath 2>&1";
+        exec($command, $output, $returnCode);
+        
+        if ($returnCode === 0 && file_exists($thumbnailPath)) {
+            return true;
+        }
+    }
+    
+    // Fallback: create a placeholder thumbnail
+    $placeholder = imagecreatetruecolor(320, 180);
+    $bgColor = imagecolorallocate($placeholder, 37, 37, 37);
+    imagefill($placeholder, 0, 0, $bgColor);
+    
+    // Add play icon
+    $playColor = imagecolorallocate($placeholder, 255, 107, 53);
+    $centerX = 160;
+    $centerY = 90;
+    $size = 30;
+    
+    // Draw play triangle
+    $points = [
+        $centerX - $size/2, $centerY - $size,
+        $centerX - $size/2, $centerY + $size,
+        $centerX + $size/2, $centerY
+    ];
+    imagefilledpolygon($placeholder, $points, 3, $playColor);
+    
+    imagepng($placeholder, $thumbnailPath);
+    imagedestroy($placeholder);
+    
+    return true;
+}
+
+// Function to handle file upload
+function handleFileUpload($file, $type) {
+    if (!isset($file) || $file['error'] !== UPLOAD_ERR_OK) {
+        return ['success' => false, 'error' => 'Upload failed'];
+    }
+    
+    $allowedTypes = [
+        'video' => ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'],
+        'image' => ['jpg', 'jpeg', 'png', 'gif', 'webp']
+    ];
+    
+    $fileExtension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    
+    if (!in_array($fileExtension, $allowedTypes[$type])) {
+        return ['success' => false, 'error' => 'Invalid file type'];
+    }
+    
+    // Check file size (max 100MB for video, 10MB for image)
+    $maxSize = $type === 'video' ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
+    if ($file['size'] > $maxSize) {
+        return ['success' => false, 'error' => 'File too large'];
+    }
+    
+    // Generate unique filename
+    $filename = uniqid() . '_' . time() . '.' . $fileExtension;
+    $uploadDir = "uploads/{$type}s/";
+    
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+    
+    $uploadPath = $uploadDir . $filename;
+    
+    if (move_uploaded_file($file['tmp_name'], $uploadPath)) {
+        // Generate thumbnail for video
+        $thumbnailPath = '';
+        if ($type === 'video') {
+            $thumbnailDir = 'uploads/thumbnails/';
+            if (!is_dir($thumbnailDir)) {
+                mkdir($thumbnailDir, 0755, true);
+            }
+            $thumbnailFilename = pathinfo($filename, PATHINFO_FILENAME) . '.jpg';
+            $thumbnailPath = $thumbnailDir . $thumbnailFilename;
+            generateVideoThumbnail($uploadPath, $thumbnailPath);
+        }
+        
+        return [
+            'success' => true,
+            'filename' => $filename,
+            'path' => $uploadPath,
+            'thumbnail' => $thumbnailPath
+        ];
+    }
+    
+    return ['success' => false, 'error' => 'Failed to move uploaded file'];
+}
+
 // Handle CRUD operations
 if ($isLoggedIn && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $videosFile = 'data/videos.json';
@@ -35,11 +134,28 @@ if ($isLoggedIn && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'add':
+                $content = $_POST['content'] ?? '';
+                $thumbnail = '';
+                
+                // Handle file upload
+                if (isset($_FILES['upload_file']) && $_FILES['upload_file']['error'] === UPLOAD_ERR_OK) {
+                    $type = $_POST['type'];
+                    $uploadResult = handleFileUpload($_FILES['upload_file'], $type);
+                    
+                    if ($uploadResult['success']) {
+                        $content = $uploadResult['path'];
+                        $thumbnail = $uploadResult['thumbnail'];
+                    } else {
+                        $uploadError = $uploadResult['error'];
+                    }
+                }
+                
                 $newVideo = [
                     'id' => time(),
                     'title' => $_POST['title'],
                     'description' => $_POST['description'] ?? '',
-                    'content' => $_POST['content'] ?? '',
+                    'content' => $content,
+                    'thumbnail' => $thumbnail,
                     'type' => $_POST['type'],
                     'views' => 0,
                     'created_at' => date('Y-m-d H:i:s')
@@ -52,8 +168,25 @@ if ($isLoggedIn && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($video['id'] == $_POST['id']) {
                         $video['title'] = $_POST['title'];
                         $video['description'] = $_POST['description'] ?? '';
-                        $video['content'] = $_POST['content'] ?? '';
                         $video['type'] = $_POST['type'];
+                        
+                        // Handle file upload
+                        if (isset($_FILES['upload_file']) && $_FILES['upload_file']['error'] === UPLOAD_ERR_OK) {
+                            $type = $_POST['type'];
+                            $uploadResult = handleFileUpload($_FILES['upload_file'], $type);
+                            
+                            if ($uploadResult['success']) {
+                                $video['content'] = $uploadResult['path'];
+                                if (!empty($uploadResult['thumbnail'])) {
+                                    $video['thumbnail'] = $uploadResult['thumbnail'];
+                                }
+                            } else {
+                                $uploadError = $uploadResult['error'];
+                            }
+                        } else {
+                            // Keep existing content if no new file uploaded
+                            $video['content'] = $_POST['content'] ?? $video['content'];
+                        }
                         break;
                     }
                 }
@@ -224,6 +357,36 @@ if (file_exists('data/videos.json')) {
             transform: scale(1.01);
         }
 
+        /* Upload Area */
+        .upload-area {
+            border: 2px dashed var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent);
+            background: rgba(255, 107, 53, 0.05);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--accent);
+            background: rgba(255, 107, 53, 0.1);
+        }
+
+        /* File Preview */
+        .file-preview {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .file-preview img {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
         /* Loading Animation */
         .loading {
             display: inline-block;
@@ -331,6 +494,12 @@ if (file_exists('data/videos.json')) {
                             </a>
                         </li>
                         <li>
+                            <a href="file-manager.php" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-800 text-gray-300 transition">
+                                <i class="fas fa-folder"></i>
+                                <span>Quản lý File</span>
+                            </a>
+                        </li>
+                        <li>
                             <a href="index.php" class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-800 text-gray-300 transition">
                                 <i class="fas fa-home"></i>
                                 <span>Trang Chủ</span>
@@ -386,6 +555,13 @@ if (file_exists('data/videos.json')) {
                         </div>
                     <?php endif; ?>
 
+                    <?php if (isset($uploadError)): ?>
+                        <div class="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6 flex items-center">
+                            <i class="fas fa-exclamation-circle mr-2"></i>
+                            <?php echo $uploadError; ?>
+                        </div>
+                    <?php endif; ?>
+
                     <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
                         <!-- Add/Edit Form -->
                         <div class="xl:col-span-1">
@@ -398,7 +574,7 @@ if (file_exists('data/videos.json')) {
                                     <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                 </div>
                                 
-                                <form method="POST" id="videoForm" class="space-y-4">
+                                <form method="POST" id="videoForm" class="space-y-4" enctype="multipart/form-data">
                                     <input type="hidden" name="action" id="formAction" value="add">
                                     <input type="hidden" name="id" id="formId">
                                     
@@ -429,7 +605,20 @@ if (file_exists('data/videos.json')) {
                                         </select>
                                     </div>
                                     
-                                    <div>
+                                    <!-- File Upload Area -->
+                                    <div id="uploadArea" class="hidden">
+                                        <label class="block text-gray-300 font-medium mb-2">Upload File</label>
+                                        <div class="upload-area rounded-lg p-6 text-center cursor-pointer" onclick="document.getElementById('upload_file').click()">
+                                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-500 mb-2"></i>
+                                            <p class="text-gray-400 text-sm">Click để upload hoặc kéo thả file vào đây</p>
+                                            <p class="text-gray-500 text-xs mt-1">Max: Video 100MB, Ảnh 10MB</p>
+                                            <input type="file" id="upload_file" name="upload_file" class="hidden" onchange="handleFileSelect(this)">
+                                        </div>
+                                        <div id="filePreview" class="mt-3 hidden"></div>
+                                    </div>
+                                    
+                                    <!-- URL Input Area -->
+                                    <div id="urlArea">
                                         <label for="content" class="block text-gray-300 font-medium mb-2">
                                             <span id="contentLabel">Nội dung</span>
                                         </label>
@@ -498,36 +687,36 @@ if (file_exists('data/videos.json')) {
                                                 <?php foreach ($videos as $video): ?>
                                                     <tr class="table-row border-b border-gray-800">
                                                         <td class="py-4 px-4">
-                                                            <div class="max-w-xs">
-                                                                <p class="font-medium text-white truncate"><?php echo htmlspecialchars($video['title']); ?></p>
-                                                                <p class="text-xs text-gray-500">ID: <?php echo htmlspecialchars($video['id']); ?></p>
+                                                            <div class="flex items-center space-x-3">
+                                                                <?php if (!empty($video['thumbnail'])): ?>
+                                                                    <img src="<?php echo htmlspecialchars($video['thumbnail']); ?>" alt="Thumbnail" class="w-12 h-8 object-cover rounded">
+                                                                <?php elseif ($video['type'] === 'image'): ?>
+                                                                    <img src="<?php echo htmlspecialchars($video['content']); ?>" alt="Preview" class="w-12 h-8 object-cover rounded">
+                                                                <?php else: ?>
+                                                                    <div class="w-12 h-8 bg-gray-700 rounded flex items-center justify-center">
+                                                                        <i class="fas fa-<?php echo $video['type'] === 'video' ? 'play' : ($video['type'] === 'clip' ? 'newspaper' : 'image'); ?> text-gray-500 text-sm"></i>
+                                                                    </div>
+                                                                <?php endif; ?>
+                                                                <div>
+                                                                    <p class="font-medium text-white truncate max-w-xs"><?php echo htmlspecialchars($video['title']); ?></p>
+                                                                    <p class="text-xs text-gray-500">ID: <?php echo htmlspecialchars($video['id']); ?></p>
+                                                                </div>
                                                             </div>
                                                         </td>
                                                         <td class="py-4 px-4">
-                                                            <?php
-                                                            $typeColors = [
-                                                                'video' => 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-                                                                'clip' => 'bg-green-500/20 text-green-400 border-green-500/30',
-                                                                'image' => 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-                                                                'fake' => 'bg-red-500/20 text-red-400 border-red-500/30'
-                                                            ];
-                                                            $typeIcons = [
-                                                                'video' => '🎥',
-                                                                'clip' => '📝',
-                                                                'image' => '🖼️',
-                                                                'fake' => '❌'
-                                                            ];
-                                                            $labels = ['video' => 'Video', 'clip' => 'Clip', 'image' => 'Ảnh', 'fake' => 'Hỏng'];
-                                                            ?>
-                                                            <span class="<?php echo $typeColors[$video['type']]; ?> px-2 py-1 rounded-full text-xs border">
-                                                                <?php echo $typeIcons[$video['type']]; ?> <?php echo $labels[$video['type']] ?? 'Unknown'; ?>
+                                                            <span class="px-2 py-1 rounded-full text-xs font-medium
+                                                                <?php echo $video['type'] === 'video' ? 'bg-blue-500/20 text-blue-400' : 
+                                                                          ($video['type'] === 'clip' ? 'bg-green-500/20 text-green-400' : 
+                                                                          ($video['type'] === 'image' ? 'bg-yellow-500/20 text-yellow-400' : 
+                                                                          'bg-red-500/20 text-red-400')); ?>">
+                                                                <?php 
+                                                                $labels = ['video' => 'Video', 'clip' => 'Clip', 'image' => 'Ảnh', 'fake' => 'Hỏng'];
+                                                                echo $labels[$video['type']] ?? 'Unknown';
+                                                                ?>
                                                             </span>
                                                         </td>
                                                         <td class="py-4 px-4">
-                                                            <span class="text-gray-300 flex items-center">
-                                                                <i class="fas fa-eye text-gray-500 mr-1"></i>
-                                                                <?php echo number_format($video['views']); ?>
-                                                            </span>
+                                                            <span class="text-gray-300"><?php echo number_format($video['views']); ?></span>
                                                         </td>
                                                         <td class="py-4 px-4">
                                                             <span class="text-gray-300 text-sm"><?php echo date('d/m/Y', strtotime($video['created_at'])); ?></span>
@@ -535,11 +724,11 @@ if (file_exists('data/videos.json')) {
                                                         <td class="py-4 px-4">
                                                             <div class="flex justify-center space-x-2">
                                                                 <button onclick="editVideo(<?php echo $video['id']; ?>)" 
-                                                                        class="text-blue-400 hover:text-blue-300 transition p-2 hover:bg-blue-500/20 rounded-lg">
+                                                                        class="text-blue-400 hover:text-blue-300 transition p-2">
                                                                     <i class="fas fa-edit"></i>
                                                                 </button>
                                                                 <button onclick="deleteVideo(<?php echo $video['id']; ?>)" 
-                                                                        class="text-red-400 hover:text-red-300 transition p-2 hover:bg-red-500/20 rounded-lg">
+                                                                        class="text-red-400 hover:text-red-300 transition p-2">
                                                                     <i class="fas fa-trash"></i>
                                                                 </button>
                                                             </div>
@@ -563,10 +752,21 @@ if (file_exists('data/videos.json')) {
             
             function toggleContentField() {
                 const type = document.getElementById('type').value;
+                const uploadArea = document.getElementById('uploadArea');
+                const urlArea = document.getElementById('urlArea');
                 const videoContent = document.getElementById('videoContent');
                 const clipContent = document.getElementById('clipContent');
                 const contentLabel = document.getElementById('contentLabel');
                 const contentInput = document.getElementById('content');
+                
+                // Show/hide upload area based on type
+                if (type === 'video' || type === 'image') {
+                    uploadArea.classList.remove('hidden');
+                    urlArea.classList.remove('hidden');
+                } else {
+                    uploadArea.classList.add('hidden');
+                    urlArea.classList.remove('hidden');
+                }
                 
                 if (type === 'clip') {
                     videoContent.classList.add('hidden');
@@ -574,11 +774,7 @@ if (file_exists('data/videos.json')) {
                     contentLabel.textContent = 'Nội dung (HTML)';
                     
                     if (!editor) {
-                        editor = CKEDITOR.replace('content_editor', {
-                            height: 200,
-                            uiColor: '#1a1a1a',
-                            contentsCss: 'body { color: #fff; background: #1a1a1a; }'
-                        });
+                        editor = CKEDITOR.replace('content_editor');
                     }
                 } else {
                     videoContent.classList.remove('hidden');
@@ -599,6 +795,69 @@ if (file_exists('data/videos.json')) {
                     }
                 }
             }
+            
+            function handleFileSelect(input) {
+                const file = input.files[0];
+                const preview = document.getElementById('filePreview');
+                
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        let previewHtml = '';
+                        
+                        if (file.type.startsWith('video/')) {
+                            previewHtml = `
+                                <div class="file-preview">
+                                    <video controls class="w-full h-48 object-cover">
+                                        <source src="${e.target.result}" type="${file.type}">
+                                    </video>
+                                    <div class="p-3">
+                                        <p class="text-sm text-gray-300 truncate">${file.name}</p>
+                                        <p class="text-xs text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (file.type.startsWith('image/')) {
+                            previewHtml = `
+                                <div class="file-preview">
+                                    <img src="${e.target.result}" alt="Preview" class="w-full h-48 object-cover">
+                                    <div class="p-3">
+                                        <p class="text-sm text-gray-300 truncate">${file.name}</p>
+                                        <p class="text-xs text-gray-500">${(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        
+                        preview.innerHTML = previewHtml;
+                        preview.classList.remove('hidden');
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+            
+            // Drag and drop functionality
+            const uploadArea = document.querySelector('.upload-area');
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    document.getElementById('upload_file').files = files;
+                    handleFileSelect(document.getElementById('upload_file'));
+                }
+            });
             
             function editVideo(id) {
                 const videos = <?php echo json_encode($videos); ?>;
@@ -643,6 +902,8 @@ if (file_exists('data/videos.json')) {
                 document.getElementById('formTitle').textContent = 'Thêm Video Mới';
                 document.getElementById('formAction').value = 'add';
                 document.getElementById('formId').value = '';
+                document.getElementById('filePreview').classList.add('hidden');
+                document.getElementById('upload_file').value = '';
                 
                 if (editor) {
                     editor.setData('');
@@ -650,51 +911,7 @@ if (file_exists('data/videos.json')) {
                 
                 toggleContentField();
             }
-            
-            // Add some interactive effects
-            document.addEventListener('DOMContentLoaded', function() {
-                // Add ripple effect to buttons
-                const buttons = document.querySelectorAll('button');
-                buttons.forEach(button => {
-                    button.addEventListener('click', function(e) {
-                        const ripple = document.createElement('span');
-                        const rect = this.getBoundingClientRect();
-                        const size = Math.max(rect.width, rect.height);
-                        const x = e.clientX - rect.left - size / 2;
-                        const y = e.clientY - rect.top - size / 2;
-                        
-                        ripple.style.width = ripple.style.height = size + 'px';
-                        ripple.style.left = x + 'px';
-                        ripple.style.top = y + 'px';
-                        ripple.classList.add('ripple');
-                        
-                        this.appendChild(ripple);
-                        
-                        setTimeout(() => {
-                            ripple.remove();
-                        }, 600);
-                    });
-                });
-            });
         </script>
-        
-        <style>
-            .ripple {
-                position: absolute;
-                border-radius: 50%;
-                background: rgba(255, 255, 255, 0.5);
-                transform: scale(0);
-                animation: ripple-animation 0.6s ease-out;
-                pointer-events: none;
-            }
-            
-            @keyframes ripple-animation {
-                to {
-                    transform: scale(4);
-                    opacity: 0;
-                }
-            }
-        </style>
     <?php endif; ?>
 </body>
 </html>

@@ -37,6 +37,14 @@ if ($video['type'] === 'fake') {
     exit;
 }
 
+// Generate unique code for this user and video if not exists
+$sessionKey = 'video_code_' . $videoId;
+if (!isset($_SESSION[$sessionKey])) {
+    $_SESSION[$sessionKey] = generateRandomCode();
+}
+
+$userCode = $_SESSION[$sessionKey];
+
 // Check if user has already entered correct code
 $hasAccess = isset($_SESSION['video_access'][$videoId]) && $_SESSION['video_access'][$videoId] === true;
 
@@ -44,7 +52,7 @@ $hasAccess = isset($_SESSION['video_access'][$videoId]) && $_SESSION['video_acce
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['code'])) {
     $enteredCode = $_POST['code'];
     
-    if ($enteredCode === $video['code']) {
+    if ($enteredCode === $userCode) {
         $_SESSION['video_access'][$videoId] = true;
         $hasAccess = true;
         
@@ -60,18 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['code'])) {
     } else {
         $error = 'Mã code không chính xác!';
     }
-}
-
-// Generate code if not exists
-if (empty($video['code'])) {
-    $video['code'] = generateRandomCode();
-    foreach ($videos as &$v) {
-        if ($v['id'] == $videoId) {
-            $v['code'] = $video['code'];
-            break;
-        }
-    }
-    file_put_contents($videosFile, json_encode($videos, JSON_PRETTY_PRINT));
 }
 
 function generateRandomCode() {
@@ -244,15 +240,19 @@ function getMultipleShortUrls($baseUrl, $code) {
                     
                     <div class="mt-8 p-4 bg-gray-50 rounded-lg">
                         <h3 class="font-semibold text-gray-800 mb-2">Lấy mã code:</h3>
-                        <p class="text-gray-600 text-sm mb-3">Sử dụng link rút gọn bên dưới để lấy mã code:</p>
+                        <p class="text-gray-600 text-sm mb-3">Sử dụng link rút gọn bên dưới để lấy mã code của bạn:</p>
                         <?php
-                        $shortUrl = getMultipleShortUrls('https://' . $_SERVER['HTTP_HOST'] . '/code.php', $video['code']);
+                        $shortUrl = getMultipleShortUrls('https://' . $_SERVER['HTTP_HOST'] . '/code.php', $userCode);
                         ?>
                         <div class="bg-white p-3 rounded border border-gray-200">
                             <a href="<?php echo htmlspecialchars($shortUrl); ?>" target="_blank" class="text-primary hover:underline break-all">
                                 <?php echo htmlspecialchars($shortUrl); ?>
                             </a>
                         </div>
+                        <p class="text-xs text-gray-500 mt-2">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Mỗi người dùng có một mã code riêng cho video này
+                        </p>
                     </div>
                 </div>
             <?php endif; ?>

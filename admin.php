@@ -41,7 +41,6 @@ if ($isLoggedIn && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'description' => $_POST['description'] ?? '',
                     'content' => $_POST['content'],
                     'type' => $_POST['type'],
-                    'code' => '',
                     'views' => 0,
                     'created_at' => date('Y-m-d H:i:s')
                 ];
@@ -269,9 +268,7 @@ if (file_exists('data/videos.json')) {
                                                 <td class="py-3 px-2">
                                                     <div class="max-w-xs">
                                                         <p class="font-medium text-gray-800 truncate"><?php echo htmlspecialchars($video['title']); ?></p>
-                                                        <?php if (!empty($video['code'])): ?>
-                                                            <p class="text-xs text-gray-500">Code: <?php echo htmlspecialchars($video['code']); ?></p>
-                                                        <?php endif; ?>
+                                                        <p class="text-xs text-gray-500">ID: <?php echo htmlspecialchars($video['id']); ?></p>
                                                     </div>
                                                 </td>
                                                 <td class="py-3 px-2">

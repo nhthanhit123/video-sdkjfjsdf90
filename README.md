@@ -12,7 +12,8 @@ Một nền tảng video đơn giản được xây dựng bằng PHP + HTML + T
 
 ### Xem video (video.php)
 - Yêu cầu nhập mã code để xem nội dung
-- Tự động tạo mã code 4 số cho mỗi video
+- **Mỗi người dùng có một mã code riêng cho mỗi video**
+- Mã code được lưu trong session của người dùng
 - Tích hợp API rút gọn link yeumoney.com (rút gọn 3 lần)
 - Lưu session để không cần nhập lại code
 - Hỗ trợ nhiều loại nội dung:
@@ -55,8 +56,12 @@ Một nền tảng video đơn giản được xây dựng bằng PHP + HTML + T
 ## Sử dụng
 
 1. **Thêm video**: Đăng nhập trang admin, điền thông tin và chọn loại nội dung
-2. **Xem video**: Click vào video ở trang chủ, nhập mã code từ link rút gọn
-3. **Lấy mã code**: Sử dụng link rút gọn được tạo tự động khi xem video
+2. **Xem video**: Click vào video ở trang chủ
+3. **Lấy mã code**: 
+   - Mỗi người dùng sẽ có một mã code riêng cho video đó
+   - Click vào link rút gọn được tạo tự động để lấy mã code
+   - Nhập mã code vào ô nhập để xem video
+4. **Lưu ý**: Mã code được lưu trong session, không cần nhập lại cho cùng một video
 
 ## API
 
@@ -72,7 +77,6 @@ Response:
     "description": "Mô tả video",
     "content": "Link nội dung",
     "type": "video|clip|image|fake",
-    "code": "1234",
     "views": 100,
     "created_at": "2024-01-01 12:00:00"
   }
@@ -88,6 +92,8 @@ Response:
 ## Lưu ý
 
 - Hệ thống sử dụng file JSON để lưu trữ dữ liệu
+- **Mỗi người dùng có một mã code riêng cho mỗi video (lưu trong session)**
 - Session được dùng để lưu trạng thái đăng nhập và mã code đã nhập
 - API rút gọn link của yeumoney.com được tích hợp sẵn
 - Responsive design hoạt động tốt trên mọi thiết bị
+- Code được tạo động khi người dùng truy cập video lần đầu

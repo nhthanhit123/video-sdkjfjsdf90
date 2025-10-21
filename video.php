@@ -52,7 +52,7 @@ $hasAccess = isset($_SESSION['video_access'][$videoId]) && $_SESSION['video_acce
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['code'])) {
     $enteredCode = $_POST['code'];
     
-    if ($enteredCode === $userCode) {
+    if ($enteredCode == $userCode) {
         $_SESSION['video_access'][$videoId] = true;
         $hasAccess = true;
         
@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['code'])) {
                 break;
             }
         }
-        file_put_contents($videosFile, json_encode($videos, JSON_PRETTY_PRINT));
+        file_put_contents($videosFile, json_encode($videos, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
     } else {
         $error = 'Mã code không chính xác!';
     }
@@ -76,29 +76,29 @@ function generateRandomCode() {
 
 function createShortUrl($longUrl) {
     $apiUrl = 'https://yeumoney.com/QL_api.php';
-    $token = 'f671ec129c1dca119827a9b28d859dc8c7eac69d954b97aa387f448f042b1a18';
-    
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $apiUrl);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-        'token' => $token,
+    $token  = 'f671ec129c1dca119827a9b28d859dc8c7eac69d954b97aa387f448f042b1a18';
+
+    // Ghép URL GET
+    $requestUrl = $apiUrl . '?' . http_build_query([
+        'token'  => $token,
         'format' => 'json',
-        'url' => $longUrl
-    ]));
+        'url'    => $longUrl
+    ]);
+
+    // Khởi tạo cURL GET
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $requestUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    
+
     $response = curl_exec($ch);
     curl_close($ch);
-    
+
     $result = json_decode($response, true);
-    
     if ($result && isset($result['status']) && $result['status'] === 'success' && isset($result['shortenedUrl'])) {
         return $result['shortenedUrl'];
     }
-    
-    return $longUrl; // Fallback to original URL if shortening fails
+    return $longUrl; // fallback nếu lỗi
 }
 
 function getMultipleShortUrls($baseUrl, $code) {
@@ -117,153 +117,277 @@ function getMultipleShortUrls($baseUrl, $code) {
     <title><?php echo htmlspecialchars($video['title']); ?> - Video Platform</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#6366f1',
-                        secondary: '#8b5cf6'
-                    }
-                }
-            }
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
         }
-    </script>
+        
+        body {
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a1a 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .sidebar {
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .nav-item {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            margin: 4px 0;
+        }
+        
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(4px);
+        }
+        
+        .nav-item.active {
+            background: linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 100%);
+        }
+        
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 16px;
+            background: #000;
+        }
+        
+        .video-container video,
+        .video-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .lock-icon {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .code-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .code-input:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #ff6b6b;
+            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #ff6b6b 0%, #4ecdc4 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+        
+        .short-link {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        
+        .short-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            space-x: 8px;
+        }
+        
+        .breadcrumb a {
+            color: #9ca3af;
+            transition: color 0.3s ease;
+        }
+        
+        .breadcrumb a:hover {
+            color: #ff6b6b;
+        }
+    </style>
 </head>
-<body class="bg-gray-50">
-    <!-- Header -->
-    <header class="bg-white shadow-sm border-b">
-        <div class="container mx-auto px-4 py-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <i class="fas fa-play-circle text-primary text-2xl"></i>
-                    <h1 class="text-2xl font-bold text-gray-800">Video Platform</h1>
+<body class="text-white">
+    <!-- Sidebar -->
+    <div class="fixed left-0 top-0 h-full w-64 sidebar z-50">
+        <div class="p-6">
+            <div class="flex items-center space-x-3 mb-8">
+                <div class="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-500 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-play text-white"></i>
                 </div>
-                <nav class="flex items-center space-x-6">
-                    <a href="index.php" class="text-gray-600 hover:text-primary transition">
-                        <i class="fas fa-home mr-2"></i>Trang chủ
-                    </a>
-                    <a href="admin.php" class="text-gray-600 hover:text-primary transition">
-                        <i class="fas fa-cog mr-2"></i>Admin
-                    </a>
-                </nav>
+                <h1 class="text-xl font-bold gradient-text">Video Platform</h1>
             </div>
+            
+            <nav class="space-y-2">
+                <a href="index.php" class="nav-item flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white">
+                    <i class="fas fa-home w-5"></i>
+                    <span>Trang chủ</span>
+                </a>
+                <a href="admin.php" class="nav-item flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white">
+                    <i class="fas fa-cog w-5"></i>
+                    <span>Quản trị</span>
+                </a>
+            </nav>
         </div>
-    </header>
+    </div>
 
     <!-- Main Content -->
-    <main class="container mx-auto px-4 py-8">
-        <div class="max-w-4xl mx-auto">
-            <!-- Breadcrumb -->
-            <nav class="mb-6">
-                <ol class="flex items-center space-x-2 text-sm">
-                    <li><a href="index.php" class="text-gray-600 hover:text-primary">Trang chủ</a></li>
-                    <li class="text-gray-400">/</li>
-                    <li class="text-gray-800"><?php echo htmlspecialchars($video['title']); ?></li>
-                </ol>
-            </nav>
+    <div class="ml-64">
+        <!-- Header -->
+        <header class="sticky top-0 z-40 glass-card border-b border-gray-800">
+            <div class="container mx-auto px-6 py-4">
+                <div class="breadcrumb">
+                    <a href="index.php" class="text-gray-400 hover:text-white transition">
+                        <i class="fas fa-home mr-2"></i>Trang chủ
+                    </a>
+                    <span class="text-gray-600 mx-2">/</span>
+                    <span class="text-white"><?php echo htmlspecialchars($video['title']); ?></span>
+                </div>
+            </div>
+        </header>
 
-            <?php if ($hasAccess): ?>
-                <!-- Video Content -->
-                <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-                    <div class="aspect-video bg-black">
-                        <?php if ($video['type'] === 'video'): ?>
-                            <video controls class="w-full h-full">
-                                <source src="<?php echo htmlspecialchars($video['content']); ?>" type="video/mp4">
-                                Trình duyệt của bạn không hỗ trợ video.
-                            </video>
-                        <?php elseif ($video['type'] === 'image'): ?>
-                            <img src="<?php echo htmlspecialchars($video['content']); ?>" alt="<?php echo htmlspecialchars($video['title']); ?>" class="w-full h-full object-contain">
-                        <?php elseif ($video['type'] === 'clip'): ?>
-                            <div class="w-full h-full p-8 bg-white">
-                                <div class="prose max-w-none">
-                                    <?php echo $video['content']; ?>
+        <!-- Main Content -->
+        <main class="container mx-auto px-6 py-8">
+            <div class="max-w-6xl mx-auto">
+                <?php if ($hasAccess): ?>
+                    <!-- Video Content -->
+                    <div class="glass-card overflow-hidden fade-in">
+                        <div class="video-container">
+                            <?php if ($video['type'] == 'video'): ?>
+                                <video controls class="w-full h-full">
+                                    <source src="<?php echo htmlspecialchars($video['content']); ?>" type="video/mp4">
+                                    Trình duyệt của bạn không hỗ trợ video.
+                                </video>
+                            <?php elseif ($video['type'] === 'image'): ?>
+                                <img src="<?php echo htmlspecialchars($video['content']); ?>" alt="<?php echo htmlspecialchars($video['title']); ?>">
+                            <?php elseif ($video['type'] === 'clip'): ?>
+                                <div class="w-full h-full p-8 bg-white text-black">
+                                    <div class="prose max-w-none">
+                                        <?php echo $video['content']; ?>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="p-8">
+                            <h1 class="text-3xl font-bold text-white mb-6"><?php echo htmlspecialchars($video['title']); ?></h1>
+                            
+                            <div class="flex items-center justify-between mb-8">
+                                <div class="flex items-center space-x-6 text-sm text-gray-400">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-eye mr-2"></i>
+                                        <?php echo number_format($video['views']); ?> lượt xem
+                                    </span>
+                                    <span class="flex items-center">
+                                        <i class="fas fa-calendar mr-2"></i>
+                                        <?php echo date('d/m/Y', strtotime($video['created_at'])); ?>
+                                    </span>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-500 rounded-full text-sm font-semibold">
+                                        <?php 
+                                        $labels = ['video' => 'Video', 'clip' => 'Clip', 'image' => 'Ảnh'];
+                                        echo $labels[$video['type']] ?? 'Unknown';
+                                        ?>
+                                    </span>
                                 </div>
                             </div>
+                            
+                            <div class="border-t border-gray-800 pt-6">
+                                <h3 class="text-xl font-semibold text-white mb-4">Mô tả</h3>
+                                <p class="text-gray-300 leading-relaxed"><?php echo htmlspecialchars($video['description'] ?? 'Không có mô tả'); ?></p>
+                            </div>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <!-- Code Input Form -->
+                    <div class="glass-card p-12 fade-in">
+                        <div class="text-center mb-12">
+                            <div class="w-24 h-24 bg-gradient-to-br from-red-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 lock-icon">
+                                <i class="fas fa-lock text-4xl text-white"></i>
+                            </div>
+                            <h2 class="text-3xl font-bold text-white mb-4">Yêu cầu mã code</h2>
+                            <p class="text-gray-400 text-lg">Vui lòng nhập mã code để xem nội dung này</p>
+                        </div>
+                        
+                        <?php if (isset($error)): ?>
+                            <div class="glass-card border border-red-500 text-red-400 px-6 py-4 rounded-lg mb-8">
+                                <i class="fas fa-exclamation-circle mr-3"></i>
+                                <?php echo $error; ?>
+                            </div>
                         <?php endif; ?>
-                    </div>
-                    
-                    <div class="p-6">
-                        <h1 class="text-2xl font-bold text-gray-800 mb-4"><?php echo htmlspecialchars($video['title']); ?></h1>
                         
-                        <div class="flex items-center justify-between mb-6">
-                            <div class="flex items-center space-x-4 text-sm text-gray-600">
-                                <span><i class="fas fa-eye mr-1"></i><?php echo number_format($video['views']); ?> lượt xem</span>
-                                <span><i class="fas fa-calendar mr-1"></i><?php echo date('d/m/Y', strtotime($video['created_at'])); ?></span>
+                        <form method="POST" class="max-w-md mx-auto mb-12">
+                            <div class="mb-6">
+                                <label for="code" class="block text-gray-300 font-medium mb-3">Mã code</label>
+                                <div class="relative">
+                                    <input type="text" id="code" name="code" required
+                                           class="w-full px-6 py-4 code-input rounded-lg text-white placeholder-gray-500 focus:outline-none"
+                                           placeholder="Nhập mã code 4 số">
+                                    <i class="fas fa-key absolute right-4 top-4 text-gray-500"></i>
+                                </div>
                             </div>
-                            <div class="flex items-center space-x-2">
-                                <span class="bg-primary text-white px-3 py-1 rounded-full text-sm">
-                                    <?php 
-                                    $labels = ['video' => 'Video', 'clip' => 'Clip', 'image' => 'Ảnh'];
-                                    echo $labels[$video['type']] ?? 'Unknown';
-                                    ?>
-                                </span>
-                            </div>
-                        </div>
+                            
+                            <button type="submit" class="w-full submit-btn text-white py-4 rounded-lg font-semibold">
+                                <i class="fas fa-unlock mr-3"></i>Xác nhận
+                            </button>
+                        </form>
                         
-                        <div class="border-t pt-4">
-                            <h3 class="font-semibold text-gray-800 mb-2">Mô tả</h3>
-                            <p class="text-gray-600"><?php echo htmlspecialchars($video['description'] ?? 'Không có mô tả'); ?></p>
-                        </div>
-                    </div>
-                </div>
-            <?php else: ?>
-                <!-- Code Input Form -->
-                <div class="bg-white rounded-lg shadow-lg p-8">
-                    <div class="text-center mb-8">
-                        <i class="fas fa-lock text-6xl text-primary mb-4"></i>
-                        <h2 class="text-2xl font-bold text-gray-800 mb-2">Yêu cầu mã code</h2>
-                        <p class="text-gray-600">Vui lòng nhập mã code để xem nội dung này</p>
-                    </div>
-                    
-                    <?php if (isset($error)): ?>
-                        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-                            <i class="fas fa-exclamation-circle mr-2"></i><?php echo $error; ?>
-                        </div>
-                    <?php endif; ?>
-                    
-                    <form method="POST" class="max-w-md mx-auto">
-                        <div class="mb-6">
-                            <label for="code" class="block text-gray-700 font-medium mb-2">Mã code</label>
-                            <div class="relative">
-                                <input type="text" id="code" name="code" required
-                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                       placeholder="Nhập mã code 4 số">
-                                <i class="fas fa-key absolute right-3 top-3.5 text-gray-400"></i>
+                        <div class="glass-card p-8">
+                            <h3 class="text-xl font-semibold text-white mb-4">Lấy mã code:</h3>
+                            <p class="text-gray-400 mb-6">Sử dụng link rút gọn bên dưới để lấy mã code của bạn:</p>
+                            <?php
+                            $shortUrl = getMultipleShortUrls('https://' . $_SERVER['HTTP_HOST'] . '/code.php', $userCode);
+                            ?>
+                            <div class="short-link p-4 rounded-lg">
+                                <a href="<?php echo htmlspecialchars($shortUrl); ?>" target="_blank" class="text-cyan-400 hover:text-cyan-300 break-all">
+                                    <?php echo htmlspecialchars($shortUrl); ?>
+                                </a>
                             </div>
+                            <p class="text-sm text-gray-500 mt-4">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                Mỗi người dùng có một mã code riêng cho video này
+                            </p>
                         </div>
-                        
-                        <button type="submit" class="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition font-medium">
-                            <i class="fas fa-unlock mr-2"></i>Xác nhận
-                        </button>
-                    </form>
-                    
-                    <div class="mt-8 p-4 bg-gray-50 rounded-lg">
-                        <h3 class="font-semibold text-gray-800 mb-2">Lấy mã code:</h3>
-                        <p class="text-gray-600 text-sm mb-3">Sử dụng link rút gọn bên dưới để lấy mã code của bạn:</p>
-                        <?php
-                        $shortUrl = getMultipleShortUrls('https://' . $_SERVER['HTTP_HOST'] . '/code.php', $userCode);
-                        ?>
-                        <div class="bg-white p-3 rounded border border-gray-200">
-                            <a href="<?php echo htmlspecialchars($shortUrl); ?>" target="_blank" class="text-primary hover:underline break-all">
-                                <?php echo htmlspecialchars($shortUrl); ?>
-                            </a>
-                        </div>
-                        <p class="text-xs text-gray-500 mt-2">
-                            <i class="fas fa-info-circle mr-1"></i>
-                            Mỗi người dùng có một mã code riêng cho video này
-                        </p>
                     </div>
-                </div>
-            <?php endif; ?>
-        </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-gray-800 text-white py-8 mt-16">
-        <div class="container mx-auto px-4 text-center">
-            <p>&copy; 2024 Video Platform. All rights reserved.</p>
-        </div>
-    </footer>
+                <?php endif; ?>
+            </div>
+        </main>
+    </div>
 </body>
 </html>
